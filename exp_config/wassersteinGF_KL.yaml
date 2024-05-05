@@ -1,0 +1,14 @@
+# env config
+gpu: '1'
+seed: 123
+
+# dataset config
+
+
+# model config
+
+
+# training config
+
+
+# saving config
