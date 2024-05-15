@@ -6,6 +6,9 @@ from functools import reduce
 import operator
 
 
+Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+
+
 def seed_everything(seed) -> int:
     if not isinstance(seed, int):
         seed = int(seed)
@@ -34,7 +37,7 @@ def count_parameters(model):
     return total_params, total_megabytes
 
 
-def step4OTFlow_RK1(odefun, z, Phi, alphas, t0, t1):
+def step4OTFlow_RK1(odefun, init_time, end_time, init_state, phi_net, args):
     """
         Runge-Kutta 1 / Forward Euler integration scheme.  Added for comparison, but we recommend stepRK4.
     :param odefun: function to apply at every time step
@@ -45,7 +48,8 @@ def step4OTFlow_RK1(odefun, z, Phi, alphas, t0, t1):
     :param t1:     float, end time
     :return: tensor nex-by-d+4, features at time t1
     """
-    return z + (t1 - t0) * odefun(z, t0, Phi, alphas=alphas)
+    dtau = end_time - init_time
+    return init_state + dtau * odefun(init_state, init_time, phi_net, args)
 
 
 def step4OTFlow_RK4(odefun, z, Phi, alphas, t0, t1):

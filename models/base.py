@@ -4,10 +4,17 @@ from einops import rearrange, repeat, reduce
 from torch.nn.init import xavier_uniform_, constant_, xavier_normal_, orthogonal_
 
 
-ACTIVATION = {'gelu':nn.GELU,'tanh':nn.Tanh,'sigmoid':nn.Sigmoid,'relu':nn.ReLU,'leaky_relu':nn.LeakyReLU(0.1),'softplus':nn.Softplus,'ELU':nn.ELU,'silu':nn.SiLU}
+class AntiderivTanh(nn.Module):
+    def __init__(self):
+        super(AntiderivTanh, self).__init__()
+
+    def forward(self, x):
+        return torch.abs(x) + torch.log(1 + torch.exp(-2.0 * torch.abs(x)))
+
+ACTIVATION = {'gelu':nn.GELU,'tanh':nn.Tanh,'sigmoid':nn.Sigmoid,'relu':nn.ReLU,'leaky_relu':nn.LeakyReLU(0.1),'softplus':nn.Softplus,'ELU':nn.ELU,'silu':nn.SiLU, 'antiderivTanh':AntiderivTanh}
 
 
-class MLP(nn.Module):
+class Mlp(nn.Module):
     def __init__(
         self, 
         num_input, 
@@ -18,7 +25,7 @@ class MLP(nn.Module):
         isResNet=True,
         isBatchNorms=True,
     ):
-        super(MLP, self).__init__()
+        super(Mlp, self).__init__()
 
         if activation in ACTIVATION.keys():
             self.activation = ACTIVATION[activation]
@@ -26,10 +33,11 @@ class MLP(nn.Module):
             raise NotImplementedError
         self.num_layers = num_layers
         self.isResNet = isResNet
+        self.isBatchNorms = isBatchNorms
         self.linear_pre = nn.Sequential(nn.Linear(num_input, num_hidden), self.activation())
         self.linear_out = nn.Linear(num_hidden, num_output)
         self.linears = nn.ModuleList([nn.Sequential(nn.Linear(num_hidden, num_hidden), self.activation()) for _ in range(num_layers)])
-        self.batchNorms = nn.ModuleList([nn.BatchNorm1d(num_hidden) for _ in range(n_layers)])
+        self.batchNorms = nn.ModuleList([nn.BatchNorm1d(num_hidden) for _ in range(num_layers)])
 
     def forward(self, x):
         x = self.linear_pre(x)
