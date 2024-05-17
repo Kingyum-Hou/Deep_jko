@@ -31,7 +31,7 @@ y = torch.tensor(y)
 print('Data is ready')
 
 
-# load model, list contains K * phi network
+# build model, list contains K * phi network
 net_list=[]
 for i in range(args.num_outerIters):
     net = get_model(args.model, args).to(device)
@@ -39,4 +39,8 @@ for i in range(args.num_outerIters):
 
 # training
 for outerItr in range(args.num_outerIters):
-    pred_x, pred_y = oneOuterIteration(args, net_list[:outerItr+1], device)
+    # load model
+    for i in range(outerItr):
+        model_save_path = os.path.join(args.save_path, f"{i}.pt")
+        net_list[i].load_state_dict(torch.load(model_save_path, map_location=device))
+    oneOuterIteration(args, net_list[:outerItr+1], device)

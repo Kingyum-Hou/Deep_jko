@@ -25,7 +25,7 @@ class Model(nn.Module):
         gradient = torch.autograd.grad(y, x, create_graph=True)[0]
         return gradient
 
-    def gradAndHessian(self, x, isOnlyGrad=False):
+    def gradAndHessian(self, x):
         """
         compute gradient of Phi wrt x and trace(Hessian of Phi); see Eq. (11) and Eq. (13), respectively
         recomputes the forward propogation portions of Phi
@@ -35,9 +35,9 @@ class Model(nn.Module):
 
         :return: gradient , trace(hessian)    OR    gradient
         """
-        device=x.device
+        device = x.device
         y = self.resnet(x)
-        gradient = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y), create_graph=True)[0]
+        gradient = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y), create_graph=True, retain_graph=True)[0]
         
         # Hessian
         B, D = gradient.shape
