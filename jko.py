@@ -8,6 +8,8 @@ from timeit import default_timer
 from utils.tools import step4OTFlow_RK1
 from wassersteinGF.formula import odefun
 from wassersteinGF.loss import internal_energy
+from visualization.plot import plot_scatter, plot_scatter_color
+import torch.nn.functional as F
 
 
 def sampling_current_outerIteration(args, sub_net_list, device):
@@ -22,12 +24,12 @@ def sampling_current_outerIteration(args, sub_net_list, device):
     TAPAN_START = 0.
     TSPAN = 1.
     integrate_timeStep = TSPAN / args.num_innerSteps
-    start_time = TAPAN_START
-    end_time = start_time + integrate_timeStep
 
-    x_next, rho_next, z_next = x_init, rho_init, z_init
+    x_next, rho_next, z_next = x_init, rho_init.unsqueeze(dim=1), z_init
     z_next.requires_grad_(True)
     for itr in range(num_current_outerIters):
+        start_time = TAPAN_START
+        end_time = start_time + integrate_timeStep
         for _ in range(args.num_innerSteps):
             if args.integrate_method=='rk1':
                 z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, sub_net_list[itr], args)
@@ -37,9 +39,11 @@ def sampling_current_outerIteration(args, sub_net_list, device):
                 raise NotImplementedError
             else:
                 raise NotImplementedError
-        x_next = z_next[:, 0:args.space_dim].clone().detach()
-        l_next = z_next[:, -2].unsqueeze(dim=1).clone().detach()
-        rho_next = rho_next / (torch.exp(l_next)+1e-5).clone().detach()
+        x_next = z_next[:, 0:args.space_dim]
+        l_next = z_next[:, -2].unsqueeze(dim=1)
+        rho_next = rho_next / (torch.exp(l_next)+1e-5)
+        # renew
+        z_next[:, args.space_dim:]=0.
 
     return x_next, rho_next, z_next
 
@@ -48,6 +52,7 @@ def oneOuterIteration(args, sub_net_list, device):
     itr = 0
     # first sample
     x_current, rho_current, z_current = sampling_current_outerIteration(args, sub_net_list, device)
+    x_current, rho_current, z_current = x_current.clone().detach(), rho_current.clone().detach(), z_current.clone().detach()
     
     # model
     # The first n layers have been frozen.
@@ -73,14 +78,17 @@ def oneOuterIteration(args, sub_net_list, device):
 
     # train
     net.train()
+    start = default_timer()
+    best_loss = float('inf')
+    best_params = None
     while True:
-        start_time = default_timer()
-
         # Re sample z0, Calculate for the current outerIteration, 
         if itr%args.reSampleFreq == 0 and itr > 0:
             x_current, rho_current, z_current = sampling_current_outerIteration(args, sub_net_list, device)
+            x_current, rho_current, z_current = x_current.clone().detach(), rho_current.clone().detach(), z_current.clone().detach()
             if args.scheduler == 'StepLR':
                 scheduler.step()
+
 
         # model pred(like autoregress)
         TAPAN_START = 0.
@@ -88,11 +96,15 @@ def oneOuterIteration(args, sub_net_list, device):
         integrate_timeStep = TSPAN / args.num_innerSteps
         start_time = TAPAN_START
         end_time = start_time + integrate_timeStep
-        
         # renew
-        x_current, rho_current, z_current = x_current.clone().detach(), rho_current.clone().detach(), z_current.clone().detach()
-        z_next = z_current
+        z_next = z_current.clone().detach()
+        x_next = x_current.clone().detach()
+        # z_next[:, args.space_dim:] = 0.
+        xt = F.pad(x_next, (0, 1, 0, 0), value=0.)
+        xt.requires_grad_(True)
+        z_next[:, args.space_dim:args.space_dim+1] = torch.log(torch.abs(net.detHessian(xt).unsqueeze(dim=1)))
         z_next.requires_grad_(True)
+        
         for _ in range(args.num_innerSteps):
             if args.integrate_method=='rk1':
                 z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, net, args)
@@ -103,6 +115,7 @@ def oneOuterIteration(args, sub_net_list, device):
             else:
                 raise NotImplementedError
 
+
         # interaction cost
         x_next = z_next[:, 0:args.space_dim]
         l_next = z_next[:, -2].unsqueeze(dim=1)
@@ -110,8 +123,11 @@ def oneOuterIteration(args, sub_net_list, device):
         
         wasserstein2Distance = torch.mean(z_next[:, -1])
         energy = internal_energy(x_next, rho_next, args)
-        loss = wasserstein2Distance
-        # loss = wasserstein2Distance * args.alphas[0] + energy * args.alphas[1]
+        loss = wasserstein2Distance * args.alphas[0] + energy * args.alphas[1]
+        if loss < best_loss:
+            best_loss = loss
+            best_params = net.state_dict()
+
 
         # optim
         optimizer.zero_grad()
@@ -119,19 +135,25 @@ def oneOuterIteration(args, sub_net_list, device):
         optimizer.step()
         if args.scheduler == 'OneCycleLR':
             scheduler.step()
+        
 
         # stopping condition
         if itr >= args.num_iterations:
-            # TO DO: save model
-            torch.save(net.state_dict(), os.path.join(args.save_path, f"{len(sub_net_list)-1}.pt"))
-            print(f'{len(sub_net_list)}-th Running finished...')
+            # save model
+            torch.save(best_params, os.path.join(args.save_path, f"{len(sub_net_list)-1}.pt"))
+            plot_scatter_color(x_next.cpu().detach().numpy(), rho_next.cpu().detach().numpy(), args, os.path.join(args.save_path, f"{len(sub_net_list)}.png"))
+            print(f'{len(sub_net_list)}-th Running finished... best loss is {best_loss:.3f}')
             break
         else:
             itr += 1
         
-        # TO DO: create plots
+
+        # report
         if itr%500 == 0:
+            end = default_timer()
             print(
+                f"cost time: {end-start:.3f}s |"
                 f"itr: {itr:>3} |"
                 f"loss: {loss:.3f}"
             )
+            start = default_timer()

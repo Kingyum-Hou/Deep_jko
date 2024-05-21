@@ -51,3 +51,23 @@ class Model(nn.Module):
             tr_hessian += second_gradient[:, itr].unsqueeze(dim=1)
 
         return gradient, tr_hessian
+    
+    def detHessian(self, x):
+        device = x.device
+        y = self.resnet(x)
+        gradient = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y), create_graph=True, retain_graph=True)[0]
+        
+        # Hessian
+        B, D = gradient.shape
+        def iterate_columns():
+            for i in range(D):
+                yield gradient[:, i:i+1]
+
+        det_hessian = []
+        for itr, g in enumerate(iterate_columns()):
+            second_gradient = torch.autograd.grad(g, x, grad_outputs=torch.ones_like(g), retain_graph=True)[0]
+            det_hessian.append(second_gradient)
+        det_hessian = torch.concat(det_hessian, dim=1).reshape(B, 3, 3)
+        det_hessian = torch.det(det_hessian)
+        
+        return det_hessian

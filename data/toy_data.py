@@ -162,8 +162,9 @@ def inf_train_gen(data, dim=2, rng=None, batch_size=200):
         return dataset, V
 
     elif data == "2gaussians":
-        center1 = np.zeros(dim)
-        centers = [center1]
+        center1 = (1.2, 0.)
+        center2 = (-1.2, 0.)
+        centers = [center1, center2]
 
         dataset = []
         values  = []

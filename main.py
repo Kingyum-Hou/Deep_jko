@@ -23,24 +23,26 @@ args.alphas = [float(item) for item in args.alphas.split(',')]
 writer = SummaryWriter()
 
 
-# load data: lacation, rho
-x, y = inf_train_gen(args.data, batch_size=args.num_totalData, dim=args.space_dim)
-x = torch.tensor(x)
-y = torch.tensor(y)
-# plot_scatter_color(x, y, savePath=os.path.join(args.save_path, 'figs', f"data.png"))
-print('Data is ready')
-
-
 # build model, list contains K * phi network
 net_list=[]
 for i in range(args.num_outerIters):
     net = get_model(args.model, args).to(device)
     net_list.append(net)
 
+x, y = inf_train_gen(args.data, batch_size=args.batch_size)
+plot_scatter_color(x, y, args, os.path.join(args.save_path, "0.png"))
+
+
 # training
-for outerItr in range(args.num_outerIters):
+for outerItr in range(0, args.num_outerIters):
     # load model
     for i in range(outerItr):
         model_save_path = os.path.join(args.save_path, f"{i}.pt")
         net_list[i].load_state_dict(torch.load(model_save_path, map_location=device))
+        if i == outerItr-1:
+            net_list[outerItr].load_state_dict(torch.load(os.path.join(args.save_path, f"{outerItr-1}.pt"), map_location=device))
+    
+    # renew learning rate
+    #if outerItr >= 4:
+    #   args.lr = 5e-7
     oneOuterIteration(args, net_list[:outerItr+1], device)
