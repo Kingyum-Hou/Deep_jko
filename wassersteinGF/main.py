@@ -12,7 +12,7 @@ from utils.tools import seed_everything, count_parameters, step4OTFlow_RK1, step
 from data.toy_data import inf_train_gen
 import numpy as np
 from visualization.plot import plot_scatter, plot_scatter_color
-from jko import oneOuterIteration
+from wassersteinGF.jko import oneOuterIteration
 
 
 seed = seed_everything(args.seed)
@@ -42,7 +42,4 @@ for outerItr in range(0, args.num_outerIters):
         if i == outerItr-1:
             net_list[outerItr].load_state_dict(torch.load(os.path.join(args.save_path, f"{outerItr-1}.pt"), map_location=device))
     
-    # renew learning rate
-    #if outerItr >= 4:
-    #   args.lr = 5e-7
     oneOuterIteration(args, net_list[:outerItr+1], device)

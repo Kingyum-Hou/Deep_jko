@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from utils.tools import step4OTFlow_RK1, step4OTFlow_RK4
 
 
 def referenceDensityQ(x_next, args):
@@ -55,3 +56,9 @@ def test_referenceDensityQ(args):
     plt.colorbar(contour)
     plt.title('Probability Density Function')
     plt.savefig('temp.png')
+
+
+def internal_energy(x_next, rho_next, args):
+    u = calculateU(x_next, rho_next, args)
+    internalEnergy = 2 * torch.mean(u/rho_next) * args.outerTimeStep
+    return internalEnergy

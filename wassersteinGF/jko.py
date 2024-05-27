@@ -6,8 +6,7 @@ from utils.tools import Tensor
 from data.toy_data import inf_train_gen
 from timeit import default_timer
 from utils.tools import step4OTFlow_RK1
-from wassersteinGF.formula import odefun
-from wassersteinGF.loss import internal_energy
+from wassersteinGF.formula import odefun, internal_energy
 from visualization.plot import plot_scatter, plot_scatter_color
 import torch.nn.functional as F
 
@@ -20,7 +19,6 @@ def sampling_current_outerIteration(args, sub_net_list, device):
     rho_init = Tensor(y_train_batch)
     z_init = torch.zeros(B, D).to(device)  # hidden vector for ODE:[x, l, v, r]
     z_init[:, :args.space_dim] = x_init
-    # TO DO: 加上迭代到当前N OuterIteration的代码
     TAPAN_START = 0.
     TSPAN = 1.
     integrate_timeStep = TSPAN / args.num_innerSteps
@@ -39,12 +37,12 @@ def sampling_current_outerIteration(args, sub_net_list, device):
                 raise NotImplementedError
             else:
                 raise NotImplementedError
+        # renew all
         x_next = z_next[:, 0:args.space_dim]
         l_next = z_next[:, -2].unsqueeze(dim=1)
         rho_next = rho_next / (torch.exp(l_next)+1e-5)
-        # renew
         z_next[:, args.space_dim:]=0.
-
+        
     return x_next, rho_next, z_next
 
 
@@ -99,12 +97,11 @@ def oneOuterIteration(args, sub_net_list, device):
         # renew
         z_next = z_current.clone().detach()
         x_next = x_current.clone().detach()
-        # z_next[:, args.space_dim:] = 0.
         xt = F.pad(x_next, (0, 1, 0, 0), value=0.)
         xt.requires_grad_(True)
         z_next[:, args.space_dim:args.space_dim+1] = torch.log(torch.abs(net.detHessian(xt).unsqueeze(dim=1)))
         z_next.requires_grad_(True)
-        
+
         for _ in range(args.num_innerSteps):
             if args.integrate_method=='rk1':
                 z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, net, args)
