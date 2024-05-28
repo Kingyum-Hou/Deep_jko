@@ -12,7 +12,8 @@ num_totalData: 100000
 sigma: 0.5
 
 # model config
-model: 'ResNet'
+model: 'Phi'
+start_outerIter: 0
 extraInput_dim: 1
 num_innerSteps: 1
 num_outerIters: 16
@@ -24,13 +25,13 @@ integrate_method: 'rk1'
 outerTimeStep: 0.025
 
 # training config
-lr: 3e-6
+lr: 5e-6
 optimizer: 'AdamW'
 scheduler: 'StepLR'
-num_iterations: 15000
+num_iterations: 10000
 weight_decay: 1e-4
 step_size: 1000
 gamma: 0.5
 
 # saving config
-save_path: './save/wassersteinGF-1'
+save_path: './save/wassersteinGF'

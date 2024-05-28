@@ -23,7 +23,7 @@ def calculateU(x_next, rho_next, args):
     return rho_next * (logRho - logQ)
 
 
-def odefun(init_state, init_time, phi_net, args):
+def odefun(init_state, init_time, phi_net, args, device):
     """
     x - particle position
     l - log determinant
@@ -31,11 +31,11 @@ def odefun(init_state, init_time, phi_net, args):
     """
     B, D = init_state.shape
     x = init_state[:, :args.space_dim]
-    xt = F.pad(x, (0, 1, 0, 0), value=init_time)
+    xt = F.pad(x, (0, 1, 0, 0), value=init_time).to(device)
 
     grad, trHessian = phi_net.gradAndHessian(xt)
     dx_dtau = -grad[:, :args.space_dim]
-    dl_dtau = -trHessian
+    dl_dtau = -trHessian.reshape(B, 1)
     wasserstein2Distance_dtau = torch.sum(torch.pow(dx_dtau, 2), dim=1, keepdim=True)
     return torch.cat([dx_dtau, dl_dtau, wasserstein2Distance_dtau], dim=1)
 

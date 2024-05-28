@@ -34,7 +34,7 @@ plot_scatter_color(x, y, args, os.path.join(args.save_path, "0.png"))
 
 
 # training
-for outerItr in range(0, args.num_outerIters):
+for outerItr in range(args.start_outerIter, args.num_outerIters):
     # load model
     for i in range(outerItr):
         model_save_path = os.path.join(args.save_path, f"{i}.pt")

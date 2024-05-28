@@ -1,9 +1,10 @@
-from . import resnet
+from . import resnet, phi
 
 
 # model config
 model_dict = {
     'ResNet': resnet,
+    'Phi': phi,
 }
 
 

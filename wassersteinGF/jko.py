@@ -30,7 +30,7 @@ def sampling_current_outerIteration(args, sub_net_list, device):
         end_time = start_time + integrate_timeStep
         for _ in range(args.num_innerSteps):
             if args.integrate_method=='rk1':
-                z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, sub_net_list[itr], args)
+                z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, sub_net_list[itr], args, device)
                 start_time += integrate_timeStep
                 end_time += integrate_timeStep
             elif args.integrate_method=='rk4':
@@ -40,17 +40,17 @@ def sampling_current_outerIteration(args, sub_net_list, device):
         # renew all
         x_next = z_next[:, 0:args.space_dim]
         l_next = z_next[:, -2].unsqueeze(dim=1)
-        rho_next = rho_next / (torch.exp(l_next)+1e-5)
+        rho_next = rho_next / (torch.exp(l_next)+1e-6)
         z_next[:, args.space_dim:]=0.
         
-    return x_next, rho_next, z_next
+    return x_next, rho_next
 
 
 def oneOuterIteration(args, sub_net_list, device):
     itr = 0
     # first sample
-    x_current, rho_current, z_current = sampling_current_outerIteration(args, sub_net_list, device)
-    x_current, rho_current, z_current = x_current.clone().detach(), rho_current.clone().detach(), z_current.clone().detach()
+    x_current, rho_current = sampling_current_outerIteration(args, sub_net_list, device)
+    x_current, rho_current = x_current.to(device), rho_current.to(device)
     
     # model
     # The first n layers have been frozen.
@@ -82,8 +82,8 @@ def oneOuterIteration(args, sub_net_list, device):
     while True:
         # Re sample z0, Calculate for the current outerIteration, 
         if itr%args.reSampleFreq == 0 and itr > 0:
-            x_current, rho_current, z_current = sampling_current_outerIteration(args, sub_net_list, device)
-            x_current, rho_current, z_current = x_current.clone().detach(), rho_current.clone().detach(), z_current.clone().detach()
+            x_current, rho_current = sampling_current_outerIteration(args, sub_net_list, device)
+            x_current, rho_current = x_current.to(device), rho_current.to(device)
             if args.scheduler == 'StepLR':
                 scheduler.step()
 
@@ -95,16 +95,18 @@ def oneOuterIteration(args, sub_net_list, device):
         start_time = TAPAN_START
         end_time = start_time + integrate_timeStep
         # renew
-        z_next = z_current.clone().detach()
+        z_next = torch.zeros(args.batch_size, args.space_dim+2).to(device)
+        z_next[:, :args.space_dim] = x_current.clone().detach()
         x_next = x_current.clone().detach()
-        xt = F.pad(x_next, (0, 1, 0, 0), value=0.)
-        xt.requires_grad_(True)
-        z_next[:, args.space_dim:args.space_dim+1] = torch.log(torch.abs(net.detHessian(xt).unsqueeze(dim=1)))
-        z_next.requires_grad_(True)
+        #xt = F.pad(x_next, (0, 1, 0, 0), value=0.)
+        #xt.requires_grad_(True)
+        #z_next[:, args.space_dim:args.space_dim+1] = torch.log(torch.abs(net.detHessian(xt).unsqueeze(dim=1)))
+        #z_next.requires_grad_(True)
+        rho_next = rho_current.clone().detach()
 
         for _ in range(args.num_innerSteps):
             if args.integrate_method=='rk1':
-                z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, net, args)
+                z_next = step4OTFlow_RK1(odefun, start_time, end_time, z_next, net, args, device)
                 start_time += integrate_timeStep
                 end_time += integrate_timeStep
             elif args.integrate_method=='rk4':
@@ -116,7 +118,7 @@ def oneOuterIteration(args, sub_net_list, device):
         # interaction cost
         x_next = z_next[:, 0:args.space_dim]
         l_next = z_next[:, -2].unsqueeze(dim=1)
-        rho_next = rho_current / (torch.exp(l_next)+1e-5)
+        rho_next = rho_next / torch.exp(l_next)
         
         wasserstein2Distance = torch.mean(z_next[:, -1])
         energy = internal_energy(x_next, rho_next, args)

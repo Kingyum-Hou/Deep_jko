@@ -37,7 +37,7 @@ def count_parameters(model):
     return total_params, total_megabytes
 
 
-def step4OTFlow_RK1(odefun, init_time, end_time, init_state, phi_net, args):
+def step4OTFlow_RK1(odefun, init_time, end_time, init_state, phi_net, args, device):
     """
         Runge-Kutta 1 / Forward Euler integration scheme.  Added for comparison, but we recommend stepRK4.
     :param odefun: function to apply at every time step
@@ -49,7 +49,7 @@ def step4OTFlow_RK1(odefun, init_time, end_time, init_state, phi_net, args):
     :return: tensor nex-by-d+4, features at time t1
     """
     dtau = end_time - init_time
-    return init_state + dtau * odefun(init_state, init_time, phi_net, args)
+    return init_state + dtau * odefun(init_state, init_time, phi_net, args, device)
 
 
 def step4OTFlow_RK4(odefun, z, Phi, alphas, t0, t1):
