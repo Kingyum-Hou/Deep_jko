@@ -19,6 +19,7 @@ class Model(nn.Module):
             isResNet=True,
             isBatchNorms=False,
         )
+        self.space_dim=args.space_dim
 
     def forward(self, x):
         y = self.resnet(x)
@@ -36,22 +37,24 @@ class Model(nn.Module):
         :return: gradient , trace(hessian)    OR    gradient
         """
         device = x.device
-        y = self.resnet(x)
-        gradient = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y), create_graph=True, retain_graph=True)[0]
+        x_ = x.clone().detach().requires_grad_()
+        y = self.resnet(x_)
+        gradient_x = torch.autograd.grad(y, x_, grad_outputs=torch.ones_like(y), create_graph=True, retain_graph=True)[0][:, :self.space_dim]
         
         # Hessian
-        B, D = gradient.shape
+        B, D = gradient_x.shape
         def iterate_columns():
             for i in range(D):
-                yield gradient[:, i:i+1]
+                yield gradient_x[:, i].unsqueeze(dim=1)
 
         tr_hessian = torch.zeros(B, 1).to(device)
         for itr, g in enumerate(iterate_columns()):
-            second_gradient = torch.autograd.grad(g, x, grad_outputs=torch.ones_like(g), retain_graph=True)[0]
-            tr_hessian += second_gradient[:, itr].unsqueeze(dim=1)
+            second_gradient_xx = torch.autograd.grad(g, x_, grad_outputs=torch.ones_like(g), create_graph=True, retain_graph=True)[0][:, :self.space_dim]
+            tr_hessian += second_gradient_xx[:, itr].unsqueeze(dim=1)
 
-        return gradient, tr_hessian
+        return gradient_x, tr_hessian
     
+    """
     def detHessian(self, x):
         device = x.device
         y = self.resnet(x)
@@ -71,3 +74,4 @@ class Model(nn.Module):
         det_hessian = torch.det(det_hessian)
         
         return det_hessian
+        """

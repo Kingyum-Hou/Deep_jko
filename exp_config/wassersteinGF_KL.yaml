@@ -12,7 +12,7 @@ num_totalData: 100000
 sigma: 0.5
 
 # model config
-model: 'Phi'
+model: 'ResNet'
 start_outerIter: 0
 extraInput_dim: 1
 num_innerSteps: 1
